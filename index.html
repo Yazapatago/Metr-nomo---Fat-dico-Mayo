@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Metrónomo configurable</title>
+<meta name="description" content="Metrónomo online configurable: volumen, tono, timbre, compás, subdivisiones y presets.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E4EAED; --surface:#F4F7F8; --ink:#1D2A33; --muted:#5A6A75; --line:#C3CED5;
+  --brass:#A87A1E; --teal:#2F6F73; --dot:#C3CED5; --on:#FFFFFF; --danger:#A3412F;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#141C22; --surface:#1E2A32; --ink:#E3E9EC; --muted:#93A3AD; --line:#33434E;
+    --brass:#D9A93F; --teal:#5FB3B8; --dot:#33434E; --on:#141C22; --danger:#E08A78; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141C22; --surface:#1E2A32; --ink:#E3E9EC; --muted:#93A3AD; --line:#33434E;
+  --brass:#D9A93F; --teal:#5FB3B8; --dot:#33434E; --on:#141C22; --danger:#E08A78; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:1rem;line-height:1.5}
+main{max-width:46rem;margin:0 auto;padding:1.5rem 1.25rem 3rem}
+h1{font-size:1.05rem;font-weight:600;margin:0 0 1rem;color:var(--muted)}
+
+.stage{display:grid;grid-template-columns:auto 1fr;gap:1.5rem;align-items:center;margin-bottom:1.25rem}
+.pend{width:7.5rem;height:10rem}
+.pend svg{width:100%;height:100%;overflow:visible}
+#arm{transform-origin:60px 150px;transform:rotate(-24deg);transition:transform .5s ease-in-out}
+.tempo{display:flex;flex-direction:column}
+.bpm{font-size:clamp(4.5rem,18vw,8rem);font-weight:800;line-height:.9;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.bpm small{font-size:1rem;font-weight:400;letter-spacing:0;color:var(--muted);margin-left:.35rem}
+.beats{display:flex;gap:.5rem;margin-top:1rem;flex-wrap:wrap}
+.beats span{width:1rem;height:1rem;border-radius:50%;background:var(--dot);transition:background .05s}
+.beats span.acc{outline:2px solid var(--brass);outline-offset:2px}
+.beats span.lit{background:var(--teal)}
+.beats span.acc.lit{background:var(--brass)}
+
+.transport{display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:2rem}
+button{font:inherit;cursor:pointer;border-radius:.5rem;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:.6rem 1rem}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+#play{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600;min-width:9rem;font-size:1.1rem}
+.step{width:3rem;font-size:1.2rem;font-weight:600}
+.small{padding:.4rem .75rem;font-size:.95rem}
+.danger{color:var(--danger)}
+
+section{border-top:1px solid var(--line);padding:1.25rem 0}
+h2{font-size:1.25rem;margin:0 0 1rem;font-weight:600}
+.row{display:grid;grid-template-columns:9rem 1fr 4.5rem;gap:.75rem;align-items:center;margin-bottom:.9rem}
+.row label{color:var(--muted)}
+.row output{text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--teal)}
+select,input[type=text]{font:inherit;padding:.45rem .6rem;border-radius:.5rem;border:1px solid var(--line);background:var(--surface);color:var(--ink);width:100%}
+.waves{display:flex;gap:.5rem;flex-wrap:wrap}
+.waves button[aria-pressed=true]{background:var(--teal);color:var(--on);border-color:var(--teal)}
+.check{display:flex;gap:.5rem;align-items:center;color:var(--ink)}
+.hint{color:var(--muted);font-size:.9rem;margin:.25rem 0 0}
+
+.save{display:flex;gap:.5rem;margin-bottom:1rem}
+.save input{flex:1}
+.presets{list-style:none;margin:0 0 1rem;padding:0}
+.presets li{display:flex;align-items:center;gap:.5rem;padding:.6rem 0;border-bottom:1px solid var(--line)}
+.presets li:first-child{border-top:1px solid var(--line)}
+.presets .info{flex:1;min-width:0}
+.presets .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.presets .meta{color:var(--muted);font-size:.875rem}
+.presets li.active .name{color:var(--teal)}
+.empty{color:var(--muted);margin:0 0 1rem}
+.io{display:flex;gap:.5rem;flex-wrap:wrap}
+.status{min-height:1.5em;color:var(--teal);margin:.75rem 0 0;font-size:.95rem}
+.status.err{color:var(--danger)}
+.footer{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:1.25rem}
+.credits{margin:0;color:var(--muted);font-size:.9rem}
+
+@media (max-width:30rem){
+  .row{grid-template-columns:1fr 3.5rem}
+  .row label{grid-column:1/-1;margin-bottom:-.5rem}
+  .pend{width:5.5rem;height:7.5rem}
+}
+@media (prefers-reduced-motion:reduce){#arm{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Metrónomo</h1>
+
+  <div class="stage">
+    <div class="pend" aria-hidden="true">
+      <svg viewBox="0 0 120 160">
+        <path d="M30 155 L52 10 L68 10 L90 155 Z" fill="none" stroke="var(--line)" stroke-width="3" stroke-linejoin="round"/>
+        <g id="arm">
+          <line x1="60" y1="150" x2="60" y2="18" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+          <rect id="weight" x="51" y="50" width="18" height="14" rx="3" fill="var(--brass)"/>
+        </g>
+        <circle cx="60" cy="150" r="5" fill="var(--ink)"/>
+      </svg>
+    </div>
+    <div class="tempo">
+      <div class="bpm"><span id="bpmVal">100</span><small>pulsos por minuto</small></div>
+      <div class="beats" id="beats"></div>
+    </div>
+  </div>
+
+  <div class="transport">
+    <button id="play" aria-pressed="false">Iniciar</button>
+    <button class="step" id="minus" aria-label="Bajar tempo">−</button>
+    <button class="step" id="plus" aria-label="Subir tempo">+</button>
+    <button id="tap">Marcar tempo</button>
+    <button id="test">Probar sonido</button>
+  </div>
+
+  <section>
+    <h2>Tempo y compás</h2>
+    <div class="row"><label for="bpm">Tempo</label><input type="range" id="bpm" min="30" max="260" value="100"><output id="bpmOut">100</output></div>
+    <div class="row"><label for="beatsSel">Pulsos por compás</label>
+      <select id="beatsSel"></select><span></span></div>
+    <div class="row"><label for="subSel">Subdivisión</label>
+      <select id="subSel">
+        <option value="1">Ninguna (negras)</option>
+        <option value="2">Corcheas</option>
+        <option value="3">Tresillos</option>
+        <option value="4">Semicorcheas</option>
+      </select><span></span></div>
+    <label class="check"><input type="checkbox" id="accentOn" checked> Acentuar el primer pulso</label>
+  </section>
+
+  <section>
+    <h2>Sonido</h2>
+    <div class="row"><label for="vol">Volumen</label><input type="range" id="vol" min="0" max="100" value="70"><output id="volOut">70 %</output></div>
+    <div class="row"><label for="pitch">Tono del pulso</label><input type="range" id="pitch" min="150" max="3000" step="10" value="880"><output id="pitchOut">880 Hz</output></div>
+    <div class="row"><label for="apitch">Tono del acento</label><input type="range" id="apitch" min="150" max="3000" step="10" value="1320"><output id="apitchOut">1320 Hz</output></div>
+    <div class="row"><label for="len">Duración del golpe</label><input type="range" id="len" min="10" max="200" value="45"><output id="lenOut">45 ms</output></div>
+    <div class="row"><label for="subvol">Volumen subdivisión</label><input type="range" id="subvol" min="0" max="100" value="45"><output id="subvolOut">45 %</output></div>
+    <div class="row"><label>Timbre</label>
+      <div class="waves" id="waves">
+        <button data-w="sine">Suave</button>
+        <button data-w="triangle">Redondo</button>
+        <button data-w="square">Hueco</button>
+        <button data-w="sawtooth">Brillante</button>
+        <button data-w="wood">Madera</button>
+      </div><span></span></div>
+    <p class="hint">Más hercios = más agudo. Barra espaciadora para iniciar o detener. Tus ajustes se guardan en este navegador.</p>
+  </section>
+
+  <section>
+    <h2>Presets</h2>
+    <div class="save">
+      <input type="text" id="presetName" maxlength="40" placeholder="Nombre, p. ej. “Rock 120 en corcheas”" aria-label="Nombre del preset">
+      <button id="savePreset">Guardar preset</button>
+    </div>
+    <ul class="presets" id="presetList"></ul>
+    <p class="empty" id="presetEmpty">Aún no tienes presets. Ajusta el metrónomo a tu gusto, ponle un nombre y guárdalo.</p>
+    <div class="io">
+      <button class="small" id="exportBtn">Exportar presets</button>
+      <button class="small" id="importBtn">Importar presets</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+    <p class="hint">Exportar descarga un archivo .json que puedes enviar a tus amigos; ellos lo cargan con “Importar presets”. Si un preset importado tiene el mismo nombre que uno tuyo, se reemplaza.</p>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <footer class="footer">
+    <p class="credits">Fátidico Mayo - Yeison Zapata</p>
+    <button class="small danger" id="resetBtn">Restaurar valores por defecto</button>
+  </footer>
+</main>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const DEFAULTS = Object.freeze({bpm:100,beats:4,sub:1,accent:true,vol:70,pitch:880,apitch:1320,len:45,subvol:45,wave:"wood"});
+  const LIMITS = {bpm:[30,260],beats:[1,12],vol:[0,100],pitch:[150,3000],apitch:[150,3000],len:[10,200],subvol:[0,100]};
+  const WAVES = ["sine","triangle","square","sawtooth","wood"];
+  const SUBS = [1,2,3,4];
+  const KEY_SETTINGS = "metro-settings", KEY_PRESETS = "metro-presets";
+
+  // Valida y completa cualquier objeto de ajustes (de storage, de un preset o de un archivo importado)
+  function sanitize(o){
+    const s = {...DEFAULTS};
+    if(!o || typeof o !== "object") return s;
+    for(const k in LIMITS){
+      const n = Number(o[k]);
+      if(Number.isFinite(n)) s[k] = Math.round(Math.min(LIMITS[k][1], Math.max(LIMITS[k][0], n)));
+    }
+    if(SUBS.includes(Number(o.sub))) s.sub = Number(o.sub);
+    if(typeof o.accent === "boolean") s.accent = o.accent;
+    if(WAVES.includes(o.wave)) s.wave = o.wave;
+    return s;
+  }
+
+  let S = {...DEFAULTS};
+  try{ S = sanitize(JSON.parse(localStorage.getItem(KEY_SETTINGS) || "null")); }catch(e){}
+  const save = () => { try{ localStorage.setItem(KEY_SETTINGS, JSON.stringify(S)); }catch(e){} };
+
+  // ---------- Audio ----------
+  let ctx=null, master=null, noiseBuf=null, running=false, timer=null;
+  let nextTime=0, tick=0; const queue=[];
+  let swingLeft=true;
+
+  function ensureAudio(){
+    if(!ctx){
+      ctx = new (window.AudioContext||window.webkitAudioContext)();
+      master = ctx.createGain(); master.connect(ctx.destination);
+      noiseBuf = ctx.createBuffer(1, ctx.sampleRate*0.2, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    }
+    if(ctx.state==="suspended") ctx.resume();
+    master.gain.value = Math.pow(S.vol/100,1.6);
+  }
+
+  function click(time, kind){
+    const freq = kind==="accent" ? S.apitch : S.pitch;
+    const lvl = kind==="sub" ? S.subvol/100 * 0.8 : (kind==="accent" ? 1 : 0.85);
+    if(lvl<=0) return;
+    const dur = S.len/1000;
+    const g = ctx.createGain();
+    g.connect(master);
+    g.gain.setValueAtTime(0.0001,time);
+    g.gain.exponentialRampToValueAtTime(lvl,time+0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001,time+dur);
+    if(S.wave==="wood"){
+      const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+      const bp = ctx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=freq; bp.Q.value=12;
+      const boost = ctx.createGain(); boost.gain.value=6;
+      src.connect(bp); bp.connect(boost); boost.connect(g);
+      src.start(time); src.stop(time+dur+0.02);
+    } else {
+      const o = ctx.createOscillator(); o.type=S.wave; o.frequency.value=freq;
+      o.connect(g); o.start(time); o.stop(time+dur+0.02);
+    }
+  }
+
+  function scheduler(){
+    while(nextTime < ctx.currentTime + 0.12){
+      const perBar = S.beats*S.sub;
+      const pos = tick % perBar;
+      const isBeat = pos % S.sub === 0;
+      const beat = Math.floor(pos/S.sub);
+      const kind = !isBeat ? "sub" : (beat===0 && S.accent ? "accent" : "beat");
+      click(nextTime, kind);
+      if(isBeat) queue.push({time:nextTime, beat});
+      nextTime += 60/S.bpm/S.sub;
+      tick++;
+    }
+  }
+
+  function draw(){
+    if(!running) return;
+    const now = ctx.currentTime;
+    while(queue.length && queue[0].time <= now){
+      const q = queue.shift();
+      const dots = $("beats").children;
+      for(let i=0;i<dots.length;i++) dots[i].classList.toggle("lit", i===q.beat);
+      swingLeft = !swingLeft;
+      const arm = $("arm");
+      arm.style.transitionDuration = (60/S.bpm)+"s";
+      arm.style.transform = "rotate("+(swingLeft?-24:24)+"deg)";
+    }
+    requestAnimationFrame(draw);
+  }
+
+  function start(){
+    ensureAudio();
+    running=true; tick=0; queue.length=0; nextTime=ctx.currentTime+0.06;
+    timer=setInterval(scheduler,25); scheduler();
+    $("play").textContent="Detener"; $("play").setAttribute("aria-pressed","true");
+    requestAnimationFrame(draw);
+  }
+  function stop(){
+    running=false; clearInterval(timer);
+    $("play").textContent="Iniciar"; $("play").setAttribute("aria-pressed","false");
+    [...$("beats").children].forEach(d=>d.classList.remove("lit"));
+  }
+  const toggle = () => running ? stop() : start();
+
+  // ---------- Interfaz ----------
+  const sliders = [["vol","volOut"," %"],["pitch","pitchOut"," Hz"],["apitch","apitchOut"," Hz"],["len","lenOut"," ms"],["subvol","subvolOut"," %"]];
+  const waveBtns=[...document.querySelectorAll("#waves button")];
+
+  function renderBeats(){
+    const b=$("beats"); b.innerHTML="";
+    for(let i=0;i<S.beats;i++){ const s=document.createElement("span"); if(i===0&&S.accent) s.className="acc"; b.appendChild(s); }
+  }
+  function showBpm(){
+    $("bpm").value=S.bpm; $("bpmOut").textContent=S.bpm; $("bpmVal").textContent=S.bpm;
+    const y = 30 + (S.bpm-30)/230*70; $("weight").setAttribute("y", y.toFixed(1));
+  }
+  function setBpm(v){ S.bpm = Math.max(30,Math.min(260,Math.round(v))); showBpm(); save(); markActive(); }
+  const markWave = () => waveBtns.forEach(b=>b.setAttribute("aria-pressed", b.dataset.w===S.wave));
+
+  // Pinta todos los controles a partir de S (se usa al cargar, al restaurar y al aplicar un preset)
+  function applyUI(){
+    showBpm();
+    $("beatsSel").value=S.beats; $("subSel").value=S.sub; $("accentOn").checked=S.accent;
+    sliders.forEach(([id,out,unit])=>{ $(id).value=S[id]; $(out).textContent=S[id]+unit; });
+    if(master) master.gain.value=Math.pow(S.vol/100,1.6);
+    markWave(); renderBeats(); tick=0;
+  }
+  function changed(){ save(); markActive(); }
+
+  const bs=$("beatsSel");
+  for(let i=1;i<=12;i++){ const o=document.createElement("option"); o.value=i; o.textContent=i===1?"1 (sin compás)":i; bs.appendChild(o); }
+
+  sliders.forEach(([id,out,unit])=>{
+    const el=$(id);
+    el.addEventListener("input",()=>{ S[id]=+el.value; $(out).textContent=el.value+unit; if(id==="vol"&&master) master.gain.value=Math.pow(S.vol/100,1.6); changed(); });
+  });
+  $("bpm").addEventListener("input",e=>setBpm(+e.target.value));
+  $("minus").onclick=()=>setBpm(S.bpm-1);
+  $("plus").onclick=()=>setBpm(S.bpm+1);
+  bs.onchange=()=>{ S.beats=+bs.value; tick=0; renderBeats(); changed(); };
+  $("subSel").onchange=e=>{ S.sub=+e.target.value; tick=0; changed(); };
+  $("accentOn").onchange=e=>{ S.accent=e.target.checked; renderBeats(); changed(); };
+  waveBtns.forEach(b=>b.onclick=()=>{ S.wave=b.dataset.w; markWave(); changed(); if(!running){ ensureAudio(); click(ctx.currentTime+0.02,"beat"); } });
+
+  $("test").onclick=()=>{ ensureAudio(); const t=ctx.currentTime+0.03; click(t,"accent"); click(t+0.35,"beat"); click(t+0.7,"beat"); };
+  $("play").onclick=toggle;
+
+  let taps=[];
+  $("tap").onclick=()=>{
+    const now=performance.now();
+    if(taps.length && now-taps[taps.length-1]>2000) taps=[];
+    taps.push(now); if(taps.length>5) taps.shift();
+    if(taps.length>=2){
+      const gaps=taps.slice(1).map((t,i)=>t-taps[i]);
+      setBpm(60000/(gaps.reduce((a,b)=>a+b)/gaps.length));
+    }
+  };
+  document.addEventListener("keydown",e=>{
+    if(e.code==="Space" && !["BUTTON","SELECT","INPUT"].includes(document.activeElement.tagName)){ e.preventDefault(); toggle(); }
+  });
+
+  // ---------- Restaurar ----------
+  $("resetBtn").onclick=()=>{
+    if(!confirm("¿Restaurar todos los ajustes a sus valores por defecto? Tus presets guardados no se borran.")) return;
+    S = {...DEFAULTS}; applyUI(); changed(); setStatus("Ajustes restaurados a los valores por defecto.");
+  };
+
+  // ---------- Presets ----------
+  let presets = [];
+  try{
+    const raw = JSON.parse(localStorage.getItem(KEY_PRESETS) || "[]");
+    if(Array.isArray(raw)) presets = raw.filter(p=>p && typeof p.name==="string" && p.name.trim())
+      .map(p=>({name:p.name.trim().slice(0,40), settings:sanitize(p.settings)}));
+  }catch(e){}
+  const savePresets = () => {
+    try{ localStorage.setItem(KEY_PRESETS, JSON.stringify(presets)); return true; }
+    catch(e){ setStatus("No se pudo guardar en este navegador. Exporta tus presets para no perderlos.", true); return false; }
+  };
+
+  let statusTimer;
+  function setStatus(msg, err){
+    const el=$("status"); el.textContent=msg; el.classList.toggle("err", !!err);
+    clearTimeout(statusTimer); statusTimer=setTimeout(()=>{ el.textContent=""; }, 5000);
+  }
+
+  const WAVE_NAMES = {sine:"suave",triangle:"redondo",square:"hueco",sawtooth:"brillante",wood:"madera"};
+  const SUB_NAMES = {1:"",2:", corcheas",3:", tresillos",4:", semicorcheas"};
+  const describe = s => `${s.bpm} BPM, ${s.beats}/4${SUB_NAMES[s.sub]}, timbre ${WAVE_NAMES[s.wave]}`;
+  const same = (a,b) => Object.keys(DEFAULTS).every(k=>a[k]===b[k]);
+
+  function renderPresets(){
+    const list=$("presetList"); list.innerHTML="";
+    $("presetEmpty").hidden = presets.length>0;
+    presets.forEach((p,i)=>{
+      const li=document.createElement("li");
+      const info=document.createElement("div"); info.className="info";
+      const n=document.createElement("div"); n.className="name"; n.textContent=p.name;
+      const m=document.createElement("div"); m.className="meta"; m.textContent=describe(p.settings);
+      info.append(n,m);
+      const load=document.createElement("button"); load.className="small"; load.textContent="Cargar";
+      load.setAttribute("aria-label",`Cargar ${p.name}`);
+      load.onclick=()=>{ S={...p.settings}; applyUI(); changed(); setStatus(`Preset “${p.name}” cargado.`); };
+      const del=document.createElement("button"); del.className="small danger"; del.textContent="Borrar";
+      del.setAttribute("aria-label",`Borrar ${p.name}`);
+      del.onclick=()=>{
+        if(!confirm(`¿Borrar el preset “${p.name}”?`)) return;
+        presets.splice(i,1); savePresets(); renderPresets(); setStatus(`Preset “${p.name}” borrado.`);
+      };
+      li.append(info,load,del); list.appendChild(li);
+    });
+    markActive();
+  }
+  // Resalta el preset que coincide exactamente con los ajustes actuales
+  function markActive(){
+    const items=$("presetList").children;
+    presets.forEach((p,i)=>{ if(items[i]) items[i].classList.toggle("active", same(p.settings,S)); });
+  }
+
+  function savePreset(){
+    const name=$("presetName").value.trim().slice(0,40);
+    if(!name){ setStatus("Escribe un nombre para el preset.", true); $("presetName").focus(); return; }
+    const idx=presets.findIndex(p=>p.name.toLowerCase()===name.toLowerCase());
+    if(idx>=0){
+      if(!confirm(`Ya existe un preset llamado “${presets[idx].name}”. ¿Reemplazarlo?`)) return;
+      presets[idx]={name, settings:{...S}};
+    } else presets.push({name, settings:{...S}});
+    if(savePresets()){ $("presetName").value=""; renderPresets(); setStatus(`Preset “${name}” guardado.`); }
+  }
+  $("savePreset").onclick=savePreset;
+  $("presetName").addEventListener("keydown",e=>{ if(e.key==="Enter") savePreset(); });
+
+  $("exportBtn").onclick=()=>{
+    if(!presets.length){ setStatus("No hay presets para exportar todavía.", true); return; }
+    const data={app:"metronomo-configurable", version:1, exported:new Date().toISOString(), presets};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`presets-metronomo-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    setStatus(`${presets.length} preset${presets.length>1?"s":""} exportado${presets.length>1?"s":""}.`);
+  };
+
+  $("importBtn").onclick=()=>$("importFile").click();
+  $("importFile").onchange=e=>{
+    const file=e.target.files[0]; e.target.value="";
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const data=JSON.parse(reader.result);
+        const list=Array.isArray(data) ? data : data.presets;
+        if(!Array.isArray(list)) throw new Error("formato");
+        let count=0;
+        list.forEach(p=>{
+          if(!p || typeof p.name!=="string" || !p.name.trim()) return;
+          const name=p.name.trim().slice(0,40);
+          const entry={name, settings:sanitize(p.settings)};
+          const idx=presets.findIndex(x=>x.name.toLowerCase()===name.toLowerCase());
+          if(idx>=0) presets[idx]=entry; else presets.push(entry);
+          count++;
+        });
+        if(!count) throw new Error("vacío");
+        savePresets(); renderPresets();
+        setStatus(`${count} preset${count>1?"s":""} importado${count>1?"s":""}.`);
+      }catch(err){
+        setStatus("Ese archivo no es un archivo de presets válido. Usa uno exportado desde este metrónomo.", true);
+      }
+    };
+    reader.onerror=()=>setStatus("No se pudo leer el archivo.", true);
+    reader.readAsText(file);
+  };
+
+  applyUI(); renderPresets();
+})();
+</script>
+</body>
+</html>
